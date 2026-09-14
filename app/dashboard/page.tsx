@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/auth";
 
-export const metadata = { title: "Dashboard" };
-
 export default async function DashboardPage() {
   const session = await currentSession();
   if (!session) redirect("/login");
