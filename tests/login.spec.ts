@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Cookie, type Page } from "@playwright/test";
 import { TEST_ACCOUNT, TEST_PASSWORD, TEST_SESSION_LIFETIME_SECONDS } from "./test-account";
 
 // The suite starts the app with this account (see playwright.config.ts), so the test
@@ -53,15 +53,19 @@ test("a visitor keeps a session until it ends, and is refused a stale one", asyn
   await expect(page.getByRole("heading")).toContainText(TEST_ACCOUNT);
 
   // 6. The session cookie is httpOnly, so a script running on the page cannot read it.
-  const sessionCookie = (await context.cookies()).find((cookie) => cookie.name === SESSION_COOKIE);
-  if (!sessionCookie) throw new Error("Signing in did not set a session cookie.");
+  const issuedCookie = await readSessionCookie(context);
+  expect(issuedCookie.httpOnly).toBe(true);
+  expect(await page.evaluate(() => document.cookie)).not.toContain(issuedCookie.value);
 
-  expect(sessionCookie.httpOnly).toBe(true);
-  expect(await page.evaluate(() => document.cookie)).not.toContain(sessionCookie.value);
+  // The refusals below tamper with a token that is certainly still valid: the session is
+  // signed in afresh first, so an expiry that elapsed midway through this journey cannot
+  // be what turns the visitor away there.
+  await page.goto("/login");
+  await signIn(page);
+  await expect(page).toHaveURL("/dashboard");
+  const sessionCookie = await readSessionCookie(context);
 
-  // 7. A cookie whose payload has been edited is refused, and the visitor lands on the
-  // form. Steps 5 and 6 just showed this server accepting the session as issued, so what
-  // turns the visitor away here is the edit rather than an expiry that crept up on it.
+  // 7. A cookie whose payload has been edited is refused, and the visitor lands on the form.
   await context.addCookies([{ ...sessionCookie, value: withEditedPayload(sessionCookie.value) }]);
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
@@ -107,6 +111,14 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
+/** The cookie carrying the visitor's session, which signing in has just set. */
+async function readSessionCookie(context: BrowserContext): Promise<Cookie> {
+  const cookie = (await context.cookies()).find((candidate) => candidate.name === SESSION_COOKIE);
+  if (!cookie) throw new Error("Signing in did not set a session cookie.");
+
+  return cookie;
+}
+
 /**
  * The token's payload edited by hand, signature left as it was: what an attacker who can
  * write the cookie produces without knowing the secret. The character sits halfway along
@@ -122,7 +134,7 @@ function withEditedPayload(token: string): string {
  */
 function withEditedSignature(token: string): string {
   // The second-to-last character rather than the last: base64url leaves padding bits in
-  // its final character, and changing those alone decodes to the very same signature.
+  // its final character, which a comparison over decoded bytes would not see.
   return withCharacterChanged(token, token.length - 2);
 }
 
