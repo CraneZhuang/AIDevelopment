@@ -13,6 +13,7 @@ The **frontier** is the set of tickets that can start right now:
 1. `gh issue list --state open --label ready-for-agent`
 2. Keep the tickets whose open blockers are zero: `issue_dependencies_summary.blocked_by` is `0`.
 3. Drop the tickets already assigned; an assignee means somebody has claimed it.
+4. Drop the **specs**. `to-spec` labels a spec `ready-for-agent` too, so the label alone does not separate a spec from a ticket: a spec carrying `## Problem Statement` is the input to `/to-tickets`, and a worker handed one would rebuild the whole feature instead of its slice. Dispatch only issues carrying `## What to build`.
 
 This replaces the original design's ready/blocked/hitl queues. The tracker already holds the graph, so a queue is a query rather than a structure to maintain, and `blocked` needs no label of its own.
 
