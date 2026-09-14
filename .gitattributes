@@ -1,0 +1,17 @@
+# Normalize line endings so the vendored skills under .agents/skills stay
+# byte-comparable with upstream (mattpocock/skills uses LF). Without this,
+# Windows checkouts rewrite every skill file as CRLF and every re-sync or
+# code-review diff shows the whole file as changed.
+* text=auto eol=lf
+
+# Shell scripts shipped with some skills must keep LF to stay executable.
+*.sh text eol=lf
+
+# Windows-native installer script.
+*.ps1 text eol=crlf
+
+# Binary files git should never touch.
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
