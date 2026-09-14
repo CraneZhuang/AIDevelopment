@@ -1,7 +1,3 @@
-# Local markdown issue tracker. Draft tickets and specs are working notes,
-# not source: keep them out of history. See docs/agents/issue-tracker.md.
-.scratch/
-
 # Download cache and extracted upstream copies used to install the skills.
 .tools/dl/
 .tools/npm-cache/

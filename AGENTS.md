@@ -10,7 +10,7 @@ Do not edit files under `.agents/skills/` casually: they are a vendored copy, an
 
 ### Issue tracker
 
-Issues and specs live as markdown files under `.scratch/<feature-slug>/` in this repo. See `docs/agents/issue-tracker.md`.
+Issues and specs live as GitHub issues on `CraneZhuang/AIDevelopment`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
