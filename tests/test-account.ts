@@ -1,7 +1,7 @@
 /**
- * The credentials the end-to-end test signs in with. The test runner passes these
- * to the app's environment, so the suite does not depend on the untracked
- * `.env.local` and stays hermetic.
+ * The values the end-to-end suite hands the app's environment, so the suite does not
+ * depend on the untracked `.env.local` and stays hermetic: the account it signs in as,
+ * and the session lifetime it waits out.
  */
 export const TEST_ACCOUNT = "admin";
 export const TEST_PASSWORD = "123456";

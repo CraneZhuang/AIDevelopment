@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { TEST_ACCOUNT, TEST_PASSWORD } from "./test-account";
+import { TEST_ACCOUNT, TEST_PASSWORD, TEST_SESSION_LIFETIME_SECONDS } from "./test-account";
 
 // The suite starts the app with this account (see playwright.config.ts), so the test
 // signs in as the configured account without depending on the untracked .env.local.
@@ -8,7 +8,24 @@ const WRONG_PASSWORD = "not-the-password";
 /** The cookie that carries the session. */
 const SESSION_COOKIE = "session";
 
-test("a visitor signs in, keeps the session, and ends it", async ({ page, context }) => {
+/** A cookie value this server never signed. */
+const FORGED_TOKEN = "forged.token";
+
+/**
+ * How long past the suite's session lifetime the visitor waits before asking for the
+ * protected page again, so that the expiry has plainly elapsed rather than being
+ * imminent.
+ */
+const PAST_EXPIRY_MS = (TEST_SESSION_LIFETIME_SECONDS + 2) * 1000;
+
+test("a visitor keeps a session until it ends, and is refused a stale one", async ({
+  page,
+  context,
+}) => {
+  // One journey through every criterion, so the timeout is the expiry wait plus room
+  // for the steps around it rather than Playwright's default.
+  test.setTimeout(PAST_EXPIRY_MS + 60_000);
+
   // 1. Visiting the protected page while signed out sends the visitor to the sign-in form.
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
@@ -42,22 +59,40 @@ test("a visitor signs in, keeps the session, and ends it", async ({ page, contex
   expect(sessionCookie.httpOnly).toBe(true);
   expect(await page.evaluate(() => document.cookie)).not.toContain(sessionCookie.value);
 
-  // 7. A cookie whose payload has been edited is refused, and the visitor lands on the form.
-  await context.addCookies([{ ...sessionCookie, value: withEditedAccount(sessionCookie.value) }]);
+  // 7. A cookie whose payload has been edited is refused, and the visitor lands on the
+  // form. Steps 5 and 6 just showed this server accepting the session as issued, so what
+  // turns the visitor away here is the edit rather than an expiry that crept up on it.
+  await context.addCookies([{ ...sessionCookie, value: withEditedPayload(sessionCookie.value) }]);
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
   await expect(page.getByLabel("Password")).toBeVisible();
 
-  // 8. Signing out from the protected page returns the visitor to the sign-in form.
+  // 8. A cookie this server never signed is refused on the same path.
+  await context.addCookies([{ ...sessionCookie, value: FORGED_TOKEN }]);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL("/login");
+  await expect(page.getByLabel("Password")).toBeVisible();
+
+  // 9. Signing out from the protected page returns the visitor to the sign-in form.
   await signIn(page);
   await expect(page).toHaveURL("/dashboard");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL("/login");
   await expect(page.getByLabel("Password")).toBeVisible();
 
-  // 9. The protected page is out of reach again once the session has ended.
+  // 10. The protected page is out of reach again once the session has ended.
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
+
+  // 11. A session whose expiry has passed is refused, and the visitor lands on the form.
+  // The suite issues sessions measured in seconds (see playwright.config.ts), so this
+  // journey can wait out a whole one instead of the eight hours the deployed app uses.
+  await signIn(page);
+  await expect(page).toHaveURL("/dashboard");
+  await page.waitForTimeout(PAST_EXPIRY_MS);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL("/login");
+  await expect(page.getByLabel("Password")).toBeVisible();
 });
 
 async function signIn(page: Page): Promise<void> {
@@ -67,14 +102,14 @@ async function signIn(page: Page): Promise<void> {
 }
 
 /**
- * The session token with the account in its payload swapped for another, and the
- * signature left as it was: what an attacker editing the cookie can produce without
- * knowing the secret.
+ * The session token with a single character changed by hand: what an attacker editing
+ * the cookie produces without knowing the secret. Nothing here decodes the token — what
+ * it is made of stays the module's business — and the character sits in the payload for
+ * a token of this shape, so the signature no longer describes what the cookie says.
  */
-function withEditedAccount(token: string): string {
-  const [payload, signature] = token.split(".");
-  const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as { account: string };
-  claims.account = "somebody-else";
+function withEditedPayload(token: string): string {
+  const at = Math.floor(token.length / 2);
+  const replacement = token[at] === "A" ? "B" : "A";
 
-  return `${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${signature}`;
+  return `${token.slice(0, at)}${replacement}${token.slice(at + 1)}`;
 }
