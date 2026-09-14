@@ -16,7 +16,9 @@ The account, password, and session secret come from the environment: `ADMIN_ACCO
 `ADMIN_PASSWORD`, and `SESSION_SECRET`. `.env.local` holds the real values and is
 never committed; `.env.example` documents the keys. The server reads all three when
 it starts, so a missing or incomplete file leaves it serving nothing but errors,
-naming the value it wants, instead of failing later as a rejected sign-in.
+naming the value it wants, instead of failing later as a rejected sign-in. A session
+lasts eight hours; `SESSION_TTL_SECONDS` overrides that, which is what the end-to-end
+suite does so that it can watch a session expire.
 
 ## Checks
 

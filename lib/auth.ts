@@ -11,9 +11,6 @@ import { requiredConfig } from "@/lib/config";
 /** The cookie holding the signed session token. */
 const SESSION_COOKIE = "session";
 
-/** How long an issued session stays valid. */
-const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
-
 /** Length of a scrypt key, in bytes. */
 const KEY_LENGTH = 64;
 
@@ -46,7 +43,10 @@ export async function verifyCredentials(account: string, password: string): Prom
 /** Issues a session token: the account and an expiry, signed with the secret. */
 export function createSessionToken(account: string): string {
   const payload = Buffer.from(
-    JSON.stringify({ account, expiresAt: Date.now() + SESSION_LIFETIME_MS } satisfies Session),
+    JSON.stringify({
+      account,
+      expiresAt: Date.now() + requiredConfig().sessionLifetimeMs,
+    } satisfies Session),
   ).toString("base64url");
 
   return `${payload}.${sign(payload)}`;
@@ -70,12 +70,26 @@ export function verifySessionToken(token: string): Session | null {
   return session;
 }
 
-/** The session of the current visitor, or null while signed out. */
+/**
+ * The session of the current visitor, or null while signed out. Refusing a bad token is
+ * one path, not four: an absent cookie, an edited payload, a signature this server did
+ * not write, and an elapsed expiry all answer null here, and the caller has nothing to
+ * tell apart — null sends the visitor to the sign-in form.
+ */
 export async function currentSession(): Promise<Session | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
 
   return token ? verifySessionToken(token) : null;
+}
+
+/**
+ * Ends the session: clears the session cookie, so the visitor is signed out and the
+ * protected page turns them away from then on.
+ */
+export async function signOut(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE);
 }
 
 /**
