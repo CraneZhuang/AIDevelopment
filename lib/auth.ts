@@ -54,7 +54,10 @@ export function createSessionToken(account: string): string {
 
 /** Reads a session token back, refusing one this server did not sign or that has expired. */
 export function verifySessionToken(token: string): Session | null {
-  const [payload, signature] = token.split(".");
+  const segments = token.split(".");
+  if (segments.length !== 2) return null;
+
+  const [payload, signature] = segments;
   if (!payload || !signature) return null;
 
   const expected = Buffer.from(sign(payload));

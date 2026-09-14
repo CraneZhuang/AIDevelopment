@@ -15,8 +15,8 @@ npm run dev
 The account, password, and session secret come from the environment: `ADMIN_ACCOUNT`,
 `ADMIN_PASSWORD`, and `SESSION_SECRET`. `.env.local` holds the real values and is
 never committed; `.env.example` documents the keys. The server reads all three when
-it starts, so a missing or incomplete file stops it there and names the value it
-wants instead of failing later as a rejected sign-in.
+it starts, so a missing or incomplete file leaves it serving nothing but errors,
+naming the value it wants, instead of failing later as a rejected sign-in.
 
 ## Checks
 
