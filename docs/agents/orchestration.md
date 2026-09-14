@@ -31,10 +31,12 @@ Read the runbook and paste it in rather than pointing at it. A worker that has t
 
 ### Isolation
 
-Every ticket gets one worktree and one branch:
+Every ticket gets one worktree and one branch, created by the dispatcher before the worker starts:
 
 - branch: `issue/<number>-<slug>`
 - worktree: `.worktrees/issue-<number>-<slug>`
+
+The dispatcher owns worktree creation so that isolation is in place before any worker runs, and so a failed `git worktree add` surfaces to the dispatcher rather than inside a worker that cannot ask for help. The worker's Phase 0 confirms what it was handed instead of creating anything.
 
 Workers run in parallel and inherit the same working directory, so the worktree is what keeps them apart. Two workers editing one checkout corrupt each other's commits and test runs.
 

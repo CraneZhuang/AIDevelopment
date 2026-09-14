@@ -14,12 +14,14 @@ The dispatch prompt carries:
 
 ## Phase 0: Environment
 
-Create the isolated workspace. Each ticket gets its own worktree so parallel workers never touch the same files.
+The dispatcher already created your worktree and branch. Confirm them before touching any file:
 
-1. `git worktree add <worktree path> -b <branch name>`
-2. Run every subsequent command with an explicit working directory: `git -C <worktree path> ...`, or an absolute path into the worktree. Shell calls in this harness do not share a working directory, so each command must carry its own.
+1. `git -C <worktree path> worktree list` includes the worktree
+2. `git -C <worktree path> branch --show-current` prints the branch name
 
-**Done when**: `git worktree list` shows the worktree, and `git -C <worktree path> branch --show-current` prints the branch name.
+Run every subsequent command with an explicit working directory: `git -C <worktree path> ...`, or an absolute path into the worktree. Shell calls in this harness do not share a working directory, so each command must carry its own.
+
+**Done when**: both commands above print what the dispatch prompt said they would.
 
 ## Phase 1: Read the spec
 
