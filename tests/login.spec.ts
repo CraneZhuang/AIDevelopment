@@ -67,24 +67,30 @@ test("a visitor keeps a session until it ends, and is refused a stale one", asyn
   await expect(page).toHaveURL("/login");
   await expect(page.getByLabel("Password")).toBeVisible();
 
-  // 8. A cookie this server never signed is refused on the same path.
+  // 8. So is a cookie whose signature has been changed: this one's payload is intact and
+  // unexpired, so only the check that the signature describes the payload can refuse it.
+  await context.addCookies([{ ...sessionCookie, value: withEditedSignature(sessionCookie.value) }]);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL("/login");
+
+  // 9. And so is a cookie this server never signed at all.
   await context.addCookies([{ ...sessionCookie, value: FORGED_TOKEN }]);
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
   await expect(page.getByLabel("Password")).toBeVisible();
 
-  // 9. Signing out from the protected page returns the visitor to the sign-in form.
+  // 10. Signing out from the protected page returns the visitor to the sign-in form.
   await signIn(page);
   await expect(page).toHaveURL("/dashboard");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL("/login");
   await expect(page.getByLabel("Password")).toBeVisible();
 
-  // 10. The protected page is out of reach again once the session has ended.
+  // 11. The protected page is out of reach again once the session has ended.
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/login");
 
-  // 11. A session whose expiry has passed is refused, and the visitor lands on the form.
+  // 12. A session whose expiry has passed is refused, and the visitor lands on the form.
   // The suite issues sessions measured in seconds (see playwright.config.ts), so this
   // journey can wait out a whole one instead of the eight hours the deployed app uses.
   await signIn(page);
@@ -102,13 +108,29 @@ async function signIn(page: Page): Promise<void> {
 }
 
 /**
- * The session token with a single character changed by hand: what an attacker editing
- * the cookie produces without knowing the secret. Nothing here decodes the token — what
- * it is made of stays the module's business — and the character sits in the payload for
- * a token of this shape, so the signature no longer describes what the cookie says.
+ * The token's payload edited by hand, signature left as it was: what an attacker who can
+ * write the cookie produces without knowing the secret. The character sits halfway along
+ * the token, which is inside its payload.
  */
 function withEditedPayload(token: string): string {
-  const at = Math.floor(token.length / 2);
+  return withCharacterChanged(token, Math.floor(token.length / 2));
+}
+
+/**
+ * The token's signature changed by hand, with the payload it covers left untouched, so
+ * that nothing but the check that the signature describes the payload can refuse it.
+ */
+function withEditedSignature(token: string): string {
+  // The second-to-last character rather than the last: base64url leaves padding bits in
+  // its final character, and changing those alone decodes to the very same signature.
+  return withCharacterChanged(token, token.length - 2);
+}
+
+/**
+ * The token with the character at `at` replaced by another one. Nothing here decodes the
+ * token: what it is made of stays the module's business.
+ */
+function withCharacterChanged(token: string, at: number): string {
   const replacement = token[at] === "A" ? "B" : "A";
 
   return `${token.slice(0, at)}${replacement}${token.slice(at + 1)}`;
